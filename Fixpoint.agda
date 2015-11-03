@@ -24,12 +24,15 @@ open import lib.types.Nat
 open import lib.types.Empty
 open import lib.Funext using (λ=)
 open import lib.PathGroupoid
+open import lib.Equivalences
 
 -- We want to take the colimit of the sequence:
 --
 --   ⊥ → F ⊥ → F² ⊥ → F³ ⊥ → ...
 
 module _ (F : Container) where
+  open Container F renaming (S to S' ; P to P')
+
   D : ℕ → Type0
   D O     = ⊥
   D (S n) = ⟦ F ⟧₀ (D n)
@@ -47,51 +50,59 @@ module _ (F : Container) where
   g : (n : ℕ) (x : D n) → i n x == i (S n) (d n x)
   g = ncglue {D = D} {d = d}
 
-  g-ext : (n : ℕ) → i n == i (S n) ∘ d n
-  g-ext n = λ= (g n)
+  -- Shift the chain by one, which is the same as shifting by applying
+  -- F.
+  D' : ℕ → Type0
+  D' = D ∘ S
 
-  open ℕColimRec d renaming (f to rec)
+  d' : (n : ℕ) → D' n → D' (S n)
+  d' n x = d (S n) x
 
-  c : (n : ℕ) → D n → ⟦ F ⟧₀ μF
-  c O ()
-  c (S n) = ⟦ F ⟧₁ (i n)
+  μF' : Type0
+  μF' = ℕColim d'
 
-  p : (n : ℕ) (x : D n) → c n x == c (S n) (d n x)
-  p O ()
-  p (S n) x =
-    ⟦ F ⟧₁ (i n) x
-     =⟨ ap (λ h → ⟦ F ⟧₁ h x) (g-ext n) ⟩
-    ⟦ F ⟧₁ (i (S n) ∘ d n) x
-     =⟨ idp ⟩ -- Functor laws hold strictly for containers
-    ⟦ F ⟧₁ (i (S n)) (⟦ F ⟧₁ (d n) x) ∎
+  i' : (n : ℕ) → D' n → μF'
+  i' = ncin {D = D'} {d = d'}
 
-  out : μF → ⟦ F ⟧₀ μF
-  out = rec c p
+  g' : (n : ℕ) (x : D' n) → i' n x == i' (S n) (d' n x)
+  g' = ncglue {D = D'} {d = d'}
 
-  -- Note that F preserves this colimit:
-  i' : (n : ℕ) → D n → ⟦ F ⟧₀ μF
-  i' n = out ∘ i n
+  -- μF and μF' are equivalent
+  module μF≃μF' where
+    open ℕColimRec d renaming (f to rec)
+    open ℕColimRec d' renaming (f to rec')
 
-  g' : (n : ℕ) (x : D n) → i' n x == i' (S n) (d n x)
-  g' n = ap out ∘ g n
+    to : μF → μF'
+    to = rec (λ n x → i' n (d n x)) (λ n x → g' n (d n x))
 
-  g'-ext : (n : ℕ) → i' n == i' (S n) ∘ d n
-  g'-ext n = λ= (g' n)
+    from : μF' → μF
+    from = rec' (λ n x → i (S n) x) (λ n x → g (S n) x)
 
-  FμF-rec :
-    {A : Type0}
-    (i* : (n : ℕ) → D n → A)
-    (g* : (n : ℕ) (x : D n) → i* n x == i* (S n) (d n x))
-    → ⟦ F ⟧₀ μF → A
-  FμF-rec i* g* (s , t) = {!!}
+      -- to (from (i' n x))
+      --  =⟨ idp ⟩ -- β for rec'
+      -- to (i (S n) x)
+      --  =⟨ idp ⟩ -- β for rec
+      -- i' (S n) (d (S n) x)
+      --  =⟨ ! (g' n x) ⟩
+      -- i' n x 
+    to-from : (x : μF') → x == to (from x)
+    to-from = ℕColim-elim d' g' (λ n x → {!!}) -- use transport of λ x . f x == g x rules
 
-  -- The above function should be unique however to be fully precise.
+    from-to : (x : μF) → x == from (to x)
+    from-to = ℕColim-elim d g (λ n x → {!!}) -- same
 
-  inn : ⟦ F ⟧₀ μF → μF
-  inn = FμF-rec i g
+    μF≃μF' : μF ≃ μF'
+    μF≃μF' = equiv to from (! ∘ to-from) (! ∘ from-to)
 
-  open import lib.Univalence
-  open import lib.Equivalences
+  -- μF' and F μF are equivalent
 
-  μF=FμF : μF == ⟦ F ⟧₀ μF
-  μF=FμF = ua (equiv out inn {!!} {!!})
+  module μF'≃FμF where
+    open ℕColimRec d' renaming (f to rec')
+
+    to : μF' → ⟦ F ⟧₀ μF
+    to = rec' (λ n x → ⟦ F ⟧₁ (i n) x) (λ n x → {!!}) -- should be ap something g
+
+    from : ⟦ F ⟧₀ μF → μF'
+    from = {!!}
+
+    
